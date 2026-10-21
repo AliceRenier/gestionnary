@@ -409,7 +409,7 @@ async function saveFile(name,data,mime){
 
 /* ---------- Synchro Google Drive ---------- */
 // Identifiant client OAuth (type « Application Web ») créé dans Google Cloud. Vide = synchro désactivée.
-const GOOGLE_CLIENT_ID='';
+const GOOGLE_CLIENT_ID='1071714506045-hmgao8tgpjr6i3phltpb37snouqkjsoi.apps.googleusercontent.com';
 const DKEY='gestionnary.drive',SCOPE='https://www.googleapis.com/auth/drive.appdata';
 const drive={meta:{linked:false,fileId:null,lastSync:null},token:null,exp:0,status:'off',t:null};
 try{const m=JSON.parse(localStorage.getItem(DKEY)||'null');if(m)Object.assign(drive.meta,m);}catch(e){}
@@ -820,14 +820,11 @@ function kcard(t){
 function vPlanifier(){
   const lane=(st,label)=>{const ts=state.tasks.filter(t=>t.status===st).sort((a,b)=>rank(a)-rank(b));const full=st==='doing'&&ts.length>=3;return `<div class="lane"><header><h3>${label}</h3><span class="mono ${full?'full':''}">${st==='doing'?ts.length+' / 3':ts.length}</span></header>${ts.map(kcard).join('')||'<p class="empty">Vide.</p>'}</div>`;};
   const P=ui.pomo,S=state.settings;const left=P.left==null?S.pomoWork*60:P.left;
-  const tools=[['Papier','y','Oui','y','Oui','n','Non'],['Google Agenda','y','Oui','y','Oui','y','Oui'],['Notion','m','Moyen','y','Offre gratuite','y','Oui'],['Trello','y','Oui','y','Offre gratuite','y','Oui'],['Gestionnary (V1)','y','Oui','y','Oui','m','Par sauvegarde']];
   return `<section class="view">${demoBanner()}
   <div class="head"><div class="titles"><h1><span class="hl">3 · Planifier</span></h1><p class="lead">Trois colonnes, et jamais plus de trois tâches en cours. Les tâches importantes reçoivent ensuite un créneau précis dans ta semaine.</p></div><div class="row"><button class="btn" data-act="newtask">Ajouter une tâche</button><button class="btn primary" data-act="proposego">Placer dans ma semaine</button></div></div>
   <div class="layout-plan"><div style="display:grid;gap:16px;min-width:0">
   <div class="board">${lane('todo','À faire')}${lane('doing','En cours')}${lane('done','Fait')}</div>
   ${why('Passer d\'une tâche à l\'autre coûte du temps à chaque bascule, d\'autant plus que les tâches sont complexes (Rubinstein, Meyer & Evans, 2001). D\'où la limite de trois tâches en cours, héritée du Kanban de Toyota (Ohno, 1988).')}
-  <div class="card"><h2>Choisir son outil</h2><p class="small muted">Le meilleur outil est celui que tu tiens plus de deux semaines. Compare sur ces critères, puis juge le dernier toi-même au bilan.</p>
-  <div class="tablewrap"><table><thead><tr><th>Outil</th><th>Simple</th><th>Gratuit</th><th>Synchronisé</th><th>Tenu 2 semaines ?</th></tr></thead><tbody>${tools.map(r=>`<tr><td><strong>${r[0]}</strong></td><td class="${r[1]}">${r[2]}</td><td class="${r[3]}">${r[4]}</td><td class="${r[5]}">${r[6]}</td><td class="muted">À toi de voir</td></tr>`).join('')}</tbody></table></div></div>
   </div>
   <aside style="display:grid;gap:16px;align-content:start">
   <div class="card pomo"><div class="row" style="justify-content:space-between"><h2>Minuteur</h2><span class="pill">optionnel</span></div>
