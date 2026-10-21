@@ -391,7 +391,7 @@ try{const raw=localStorage.getItem(KEY);state=raw?normalize(JSON.parse(raw)):nul
 const firstRun=!state;
 if(!state)state=makeDemo();
 let saveT=null;
-function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(state));storageOK=true;}catch(e){storageOK=false;}},150);}
+function save(){state.savedAt=Date.now();clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(state));storageOK=true;}catch(e){storageOK=false;}drivePush();},150);}
 
 const ui={view:'accueil',tip:null,wiz:null,weekStart:sow(new Date()),editing:null,confirmReset:false,pomo:{phase:'travail',left:null,running:false,timer:null}};
 try{const v=sessionStorage.getItem('gestionnary.view');if(v)ui.view=v;}catch(e){}
@@ -405,6 +405,73 @@ async function saveFile(name,data,mime){
   if(dl){try{await dl.save({filename:name,data});toast('Fichier enregistré');return true;}catch(err){const c=err&&err.code;if(c==='declined'){toast('Enregistrement annulé');return false;}showText('Copie manuelle',data,'Le téléchargement n\'est pas disponible ici. Copie le contenu et colle-le dans un fichier nommé '+name+'.');return false;}}
   if(inViewer){showText('Copie manuelle',data,'Le téléchargement n\'est pas disponible ici. Copie le contenu et colle-le dans un fichier nommé '+name+'.');return false;}
   try{const b=new Blob([data],{type:mime});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);toast('Fichier téléchargé');return true;}catch(e){showText('Copie manuelle',data,'Copie le contenu dans un fichier nommé '+name+'.');return false;}
+}
+
+/* ---------- Synchro Google Drive ---------- */
+// Identifiant client OAuth (type « Application Web ») créé dans Google Cloud. Vide = synchro désactivée.
+const GOOGLE_CLIENT_ID='';
+const DKEY='gestionnary.drive',SCOPE='https://www.googleapis.com/auth/drive.appdata';
+const drive={meta:{linked:false,fileId:null,lastSync:null},token:null,exp:0,status:'off',t:null};
+try{const m=JSON.parse(localStorage.getItem(DKEY)||'null');if(m)Object.assign(drive.meta,m);}catch(e){}
+try{const t=JSON.parse(sessionStorage.getItem(DKEY)||'null');if(t&&t.exp>Date.now()){drive.token=t.token;drive.exp=t.exp;}}catch(e){}
+const driveAvailable=()=>!!GOOGLE_CLIENT_ID&&!inViewer&&location.protocol==='https:';
+if(drive.meta.linked&&driveAvailable())drive.status=drive.token?'ok':'reconnect';
+function dsave(){try{localStorage.setItem(DKEY,JSON.stringify(drive.meta));}catch(e){}}
+function loadGIS(){return new Promise((res,rej)=>{if(window.google&&google.accounts&&google.accounts.oauth2)return res();const sc=document.createElement('script');sc.src='https://accounts.google.com/gsi/client';sc.async=true;sc.onload=()=>res();sc.onerror=()=>rej({code:'gis'});document.head.appendChild(sc);});}
+async function driveToken(prompt){await loadGIS();return new Promise((res,rej)=>{const c=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:SCOPE,callback:r=>{if(r&&r.access_token){drive.token=r.access_token;drive.exp=Date.now()+((+r.expires_in||3600)-60)*1000;try{sessionStorage.setItem(DKEY,JSON.stringify({token:drive.token,exp:drive.exp}));}catch(e){}res(r.access_token);}else rej(r||{});},error_callback:e=>rej(e||{})});c.requestAccessToken({prompt});});}
+async function gfetch(url,opt){opt=opt||{};const r=await fetch(url,Object.assign({},opt,{headers:Object.assign({Authorization:'Bearer '+drive.token},opt.headers||{})}));if(r.status===401){drive.token=null;throw {code:401};}if(!r.ok)throw {code:r.status};return r;}
+async function driveFind(){const q=encodeURIComponent("name='gestionnary.json'");const r=await gfetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q='+q+'&fields=files(id,modifiedTime)');const j=await r.json();return (j.files&&j.files[0])||null;}
+async function driveRead(id){const r=await gfetch('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media');return r.json();}
+async function driveCreate(body){const b='gst'+Date.now();const meta={name:'gestionnary.json',parents:['appDataFolder'],mimeType:'application/json'};const data='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(meta)+'\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+body+'\r\n--'+b+'--';const r=await gfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:data});return (await r.json()).id;}
+async function driveUpdate(id,body){await gfetch('https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body});}
+function askChoice(remote){return new Promise(res=>{ui.choiceRes=res;ui.wiz='choice';const rd=remote.savedAt?new Date(remote.savedAt):null;const nt=(remote.tasks||[]).length;
+  document.getElementById('modalroot').innerHTML=`<div class="scrim"><div class="modal wiz" role="dialog" aria-modal="true" aria-labelledby="mch"><h2 id="mch">Une sauvegarde existe sur ton Drive</h2><p class="muted">${rd?'Enregistrée le '+fdate(rd)+' à '+pad(rd.getHours())+':'+pad(rd.getMinutes())+', ':''}${nt} tâche${nt>1?'s':''}${remote.profile&&remote.profile.name?', au nom de '+esc(remote.profile.name):''}.</p><div class="choice"><button type="button" data-act="choice" data-v="remote"><strong>Récupérer ma sauvegarde Drive</strong><span>Remplace ce qu'il y a sur cet appareil.</span></button><button type="button" data-act="choice" data-v="local"><strong>Garder cet appareil</strong><span>Remplace la sauvegarde du Drive par les données d'ici.</span></button></div></div></div>`;});}
+async function driveSync(first){
+  drive.status='sync';renderShell();
+  let f=drive.meta.fileId?{id:drive.meta.fileId}:await driveFind();
+  if(f){let remote=null;try{remote=await driveRead(f.id);}catch(e){if(e.code===404){f=null;drive.meta.fileId=null;}else throw e;}
+    if(remote&&Array.isArray(remote.tasks)){
+      let take=false;
+      if(first&&!state.demo&&(state.tasks.length||state.events.length||state.inbox.length)){take=(await askChoice(remote))==='remote';closeModal();}
+      else take=state.demo||!state.savedAt||(remote.savedAt||0)>(state.savedAt||0);
+      if(take){state=normalize(remote);try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}toast('Données récupérées depuis ton Drive');}
+    }}
+  if(!f&&state.demo){state=blank();ui.noRemote=true;}
+  const body=JSON.stringify(state);
+  if(f){await driveUpdate(f.id,body);drive.meta.fileId=f.id;}else drive.meta.fileId=await driveCreate(body);
+  drive.meta.lastSync=Date.now();dsave();drive.status='ok';
+}
+async function driveConnect(){
+  if(!driveAvailable())return;const first=!drive.meta.linked;
+  try{await driveToken(first?'consent':'');await driveSync(first);drive.meta.linked=true;dsave();
+    if(ui.noRemote){ui.noRemote=false;render();openWiz(1);toast('Aucune sauvegarde trouvée sur ton Drive : on commence ensemble.');return;}
+    if(first)toast('Google Drive connecté : sauvegarde automatique activée');}
+  catch(e){drive.status=drive.meta.linked?'reconnect':'off';const t=e&&e.type;toast(t==='popup_closed'||t==='popup_failed_to_open'?'Connexion annulée ou fenêtre bloquée. Réessaie.':'Connexion à Google Drive impossible pour le moment.');}
+  render();
+}
+function drivePush(){
+  if(!drive.meta.linked||!driveAvailable()||state.demo)return;clearTimeout(drive.t);
+  drive.t=setTimeout(async()=>{
+    if(!drive.token||Date.now()>drive.exp){drive.status='reconnect';renderShell();return;}
+    try{drive.status='sync';renderShell();const body=JSON.stringify(state);if(drive.meta.fileId)await driveUpdate(drive.meta.fileId,body);else drive.meta.fileId=await driveCreate(body);drive.meta.lastSync=Date.now();dsave();drive.status='ok';}
+    catch(e){drive.status=e&&e.code===401?'reconnect':'error';}
+    renderShell();
+  },2500);
+}
+function driveDisconnect(){try{if(drive.token&&window.google&&google.accounts)google.accounts.oauth2.revoke(drive.token,()=>{});}catch(e){}drive.token=null;drive.exp=0;drive.meta={linked:false,fileId:null,lastSync:null};dsave();try{sessionStorage.removeItem(DKEY);}catch(e){}drive.status='off';render();toast('Google Drive déconnecté. Tes données restent sur cet appareil.');}
+function drivePill(){
+  if(!driveAvailable()||!drive.meta.linked)return '';
+  const t=drive.meta.lastSync?new Date(drive.meta.lastSync):null;
+  if(drive.status==='sync')return '<span class="pill">Drive · synchro…</span>';
+  if(drive.status==='ok')return `<button class="pill" data-act="go" data-v="reglages" style="border:0;cursor:pointer" title="Sauvegardé sur Google Drive">Drive ✓${t?' '+pad(t.getHours())+':'+pad(t.getMinutes()):''}</button>`;
+  return `<button class="pill acc" data-act="driveConnect" style="border:0;cursor:pointer">${drive.status==='error'?'Drive : réessayer':'Reconnecter le Drive'}</button>`;
+}
+function driveCard(){
+  if(inViewer)return `<p class="small muted">La sauvegarde automatique sur Google Drive fonctionne sur la version publiée de Gestionnary, pas dans cet aperçu.</p>`;
+  if(!GOOGLE_CLIENT_ID)return `<p class="small muted">La sauvegarde automatique sur Google Drive arrive très bientôt.</p>`;
+  if(!drive.meta.linked)return `<div class="fiche"><strong>Sauvegarde automatique sur Google Drive</strong><p class="small muted">Chaque modification est enregistrée dans un dossier caché de ton Drive. Sur un autre appareil, connecte-toi et tout revient. Gestionnary ne voit aucun autre fichier de ton Drive.</p><button class="btn primary" data-act="driveConnect" style="justify-self:start">Connecter mon Google Drive</button></div>`;
+  const t=drive.meta.lastSync?new Date(drive.meta.lastSync):null;
+  return `<div class="fiche"><strong>Google Drive connecté</strong><p class="small muted">${drive.status==='ok'?'Sauvegarde automatique active.':'Reconnecte-toi pour reprendre la sauvegarde automatique.'}${t?' Dernière synchro : '+fdate(t)+' à '+pad(t.getHours())+':'+pad(t.getMinutes())+'.':''}</p><div class="row"><button class="btn ${drive.status==='ok'?'':'primary'}" data-act="driveConnect">${drive.status==='ok'?'Synchroniser maintenant':'Reconnecter'}</button><button class="btn ghost danger" data-act="driveOff">Déconnecter</button></div></div>`;
 }
 
 /* ---------- Calcul d'une journée ---------- */
@@ -563,13 +630,13 @@ function renderShell(){
   document.getElementById('tabs').innerHTML=VIEWS.map(([k,n,l])=>`<button data-act="go" data-v="${k}" ${ui.view===k?'aria-current="page"':''}>${n?`<span class="n">${n}</span>`:''}${l}</button>`).join('');
   const sea=SEASONS[ui.season];
   const nm=(state.profile&&state.profile.name)||'';
-  document.getElementById('topright').innerHTML=`${state.demo?'<span class="pill acc">Exemple</span>':''}<span class="pill" title="La couleur d'accent suit la saison">${sea.name}</span>${nm?`<button class="avatar" data-act="go" data-v="reglages" title="Mon profil" aria-label="Mon profil" style="border:0;cursor:pointer">${esc(nm.trim().charAt(0).toUpperCase())}</button>`:''}`;
+  document.getElementById('topright').innerHTML=`${state.demo?'<span class="pill acc">Exemple</span>':''}${drivePill()}<span class="pill" title="La couleur d'accent suit la saison">${sea.name}</span>${nm?`<button class="avatar" data-act="go" data-v="reglages" title="Mon profil" aria-label="Mon profil" style="border:0;cursor:pointer">${esc(nm.trim().charAt(0).toUpperCase())}</button>`:''}`;
 }
 function render(){
   applySeason();renderShell();
   const app=document.getElementById('app');
   const f={accueil:vAccueil,semaine:vSemaine,poser:vPoser,prioriser:vPrioriser,planifier:vPlanifier,proteger:vProteger,progresser:vProgresser,reglages:vReglages}[ui.view]||vSemaine;
-  app.innerHTML=f()+`<p class="foot">Gestionnary V1 · tes données restent dans ce navigateur${storageOK?'':' (stockage indisponible : pense à exporter ta sauvegarde)'} · méthode fondée sur des travaux publiés, cités dans chaque section.</p>`;
+  app.innerHTML=f()+`<p class="foot">Gestionnary V1 · tes données restent dans ce navigateur${drive.meta.linked&&driveAvailable()?' et dans ton Google Drive':''}${storageOK?'':' (stockage indisponible : pense à exporter ta sauvegarde)'} · méthode fondée sur des travaux publiés, cités dans chaque section${inViewer?'':' · <a href="confidentialite.html" style="color:inherit">Confidentialité</a>'}.</p>`;
 }
 const why=(t)=>`<p class="why"><b>Pourquoi</b><span>${t}</span></p>`;
 function demoBanner(){return state.demo?`<div class="banner"><p><strong>Semaine d'exemple.</strong> Tout ce que tu vois appartient à Camille, une étudiante fictive qui lance sa marque de tote bags. Explore, puis pars de ta propre semaine.</p><button class="btn primary" data-act="start">Commencer avec mes données</button></div>`:'';}
@@ -849,7 +916,7 @@ function vReglages(){
   <label class="f">Ou colle le contenu du fichier<textarea id="icstext" rows="3" placeholder="BEGIN:VCALENDAR…"></textarea></label>
   <div class="row"><button class="btn primary" data-act="icsImport">Importer</button>${nIcs?'<button class="btn ghost danger" data-act="icsClear">Effacer l\'agenda importé</button>':''}</div>
   <details class="small"><summary class="muted" style="cursor:pointer">Où trouver mon fichier .ics ?</summary><ul style="margin:8px 0 0;padding-left:18px;display:grid;gap:4px"><li><strong>Google Agenda</strong> (sur ordinateur) : Paramètres › Importer et exporter › Exporter. Décompresse le .zip et importe le fichier de ton agenda.</li><li><strong>Emploi du temps de fac</strong> : cherche « Exporter », « iCal » ou « Synchroniser » dans ton ENT.</li><li><strong>Outlook</strong> : enregistre ton calendrier au format .ics.</li></ul><p class="muted" style="margin-top:6px">La connexion directe à Google Agenda arrive en V2.</p></details></div>
-  <div class="card"><h2>Sauvegarde et synchro</h2><p class="small muted">Tes données restent dans ce navigateur. Pour passer du téléphone à l'ordinateur, exporte ta sauvegarde ici et importe-la là-bas. La synchro automatique arrive en V2.</p>
+  <div class="card"><h2>Sauvegarde et synchro</h2>${driveCard()}<p class="small muted">Sans Drive : exporte ta sauvegarde ici et restaure-la sur ton autre appareil.</p>
   <div class="row"><button class="btn primary" data-act="bkExport">Exporter ma sauvegarde</button><button class="btn" data-act="bkCopy">Copier ma sauvegarde</button></div>
   <label class="f">Importer une sauvegarde (.json)<input type="file" id="bkfile" accept=".json,application/json"></label>
   <label class="f">Ou colle une sauvegarde copiée<textarea id="bktext" rows="2" placeholder='{"version":1,…}'></textarea></label>
@@ -876,7 +943,7 @@ function openWiz(step){
   ui.wiz=step;const P=state.profile,S=state.settings;
   const dots=step>0?`<div class="steps">${[1,2,3].map(i=>`<span class="${i<=step?'on':''}"></span>`).join('')}</div>`:'';
   let body='';
-  if(step===0)body=`<h2>Bienvenue sur Gestionnary</h2><p class="muted">L'outil des étudiants qui lancent un projet. Tes études, ton projet et ta vie dans une seule semaine, sans y laisser ton sommeil.</p><div class="choice"><button type="button" data-act="wizDemo"><strong>Découvrir avec un exemple</strong><span>La semaine de Camille, qui lance sa marque de tote bags.</span></button><button type="button" data-act="wizStart"><strong>Commencer avec ma semaine</strong><span>Trois questions, deux minutes.</span></button></div><p class="small muted">Tes données restent sur ton appareil. Rien n'est envoyé nulle part.</p>`;
+  if(step===0)body=`<h2>Bienvenue sur Gestionnary</h2><p class="muted">L'outil des étudiants qui lancent un projet. Tes études, ton projet et ta vie dans une seule semaine, sans y laisser ton sommeil.</p><div class="choice"><button type="button" data-act="wizDemo"><strong>Découvrir avec un exemple</strong><span>La semaine de Camille, qui lance sa marque de tote bags.</span></button><button type="button" data-act="wizStart"><strong>Commencer avec ma semaine</strong><span>Trois questions, deux minutes.</span></button>${driveAvailable()?'<button type="button" data-act="wizDrive"><strong>J\'utilise déjà Gestionnary</strong><span>Récupérer mes données depuis mon Google Drive.</span></button>':''}</div><p class="small muted">Tes données restent sur ton appareil. Rien n'est envoyé nulle part.</p>`;
   if(step===1)body=`${dots}<h2>Toi et ton projet</h2><label class="f">Ton prénom<input type="text" id="w_name" value="${esc(P.name)}" autocomplete="given-name" required></label><label class="f">Le nom de ton projet<input type="text" id="w_proj" value="${esc(P.project)}" placeholder="Même provisoire"></label><label class="f">En une phrase<input type="text" id="w_pitch" value="${esc(P.pitch)}" placeholder="Ce que tu fais, pour qui"></label>`;
   if(step===2)body=`${dots}<h2>Ton rythme</h2><p class="small muted">On bloque ton sommeil et tes repas avant tout le reste.</p><div class="fields"><label class="f">Réveil<input type="time" id="w_wake" value="${S.wake}"></label><label class="f">Sommeil (h)<input type="number" id="w_sleep" min="8" max="10" step="0.5" value="${S.sleepHours}"></label><label class="f">Trajet aller (min)<input type="number" id="w_com" min="0" max="180" value="${S.commute}"></label><label class="f">Projet max / jour (h)<input type="number" id="w_max" min="0.5" max="10" step="0.5" value="${S.maxPerDay}"></label></div>`;
   if(step===3)body=`${dots}<h2>${P.name?esc(P.name)+', d':'D'}ernière étape : ton agenda</h2><p class="muted">Importe ton emploi du temps (.ics) pour que Gestionnary trouve tes vrais trous. Tu peux aussi le faire plus tard.</p><div class="choice"><button type="button" data-act="wizIcs"><strong>Importer mon agenda maintenant</strong><span>Emploi du temps de fac, Google Agenda, Outlook…</span></button><button type="button" data-act="wizEnd"><strong>Plus tard, voir mon tableau de bord</strong><span>Tu pourras l'importer depuis Réglages.</span></button></div>`;
@@ -912,6 +979,10 @@ const find=id=>state.tasks.find(t=>t.id===id);
 const A={
   go:el=>{ui.view=el.dataset.v;try{sessionStorage.setItem('gestionnary.view',ui.view);}catch(e){}render();try{window.scrollTo(0,0);}catch(e){}},
   start:()=>{state=blank();save();openWiz(1);},
+  driveConnect:()=>{driveConnect();},
+  driveOff:()=>{driveDisconnect();},
+  choice:el=>{if(ui.choiceRes){const r=ui.choiceRes;ui.choiceRes=null;ui.wiz=null;r(el.dataset.v);}},
+  wizDrive:()=>{closeModal();ui.wiz=null;driveConnect();},
   wizDemo:()=>{closeModal();ui.wiz=null;ui.view='accueil';render();},
   wizStart:()=>{state=blank();save();openWiz(1);},
   wizBack:()=>{openWiz(Math.max(1,ui.wiz-1));},

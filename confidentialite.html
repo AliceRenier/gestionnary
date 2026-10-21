@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Confidentialité · Gestionnary</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#F1F2F7;--surface:#FFFFFF;--ink:#15152B;--muted:#5B5E78;--line:#D6D9E5;--marker:#FFD84D;--accent:#C2410C;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0E0F1F;--surface:#171930;--ink:#ECEDF8;--muted:#A4A7C4;--line:#2E3152;--marker:rgba(232,197,71,.34);--accent:#FB923C;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-left,0px)) 64px max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h1 span{background:linear-gradient(transparent 56%,var(--marker) 56%,var(--marker) 90%,transparent 90%)}
+h2{font-size:19px;margin:32px 0 8px}
+p,li{max-width:66ch}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-top:20px}
+code{font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+</style>
+</head>
+<body>
+<main>
+<p><a href="./">← Retour à Gestionnary</a></p>
+<h1><span>Confidentialité</span></h1>
+<p class="muted">Dernière mise à jour : 21 octobre 2026</p>
+
+<div class="box"><strong>En bref.</strong> Gestionnary n'a ni serveur ni base de données. Tes données restent sur ton appareil et, si tu le choisis, dans ton propre Google Drive. Personne d'autre n'y a accès, pas même l'éditrice de l'outil.</div>
+
+<h2>Qui édite Gestionnary</h2>
+<p>Éditrice : [NOM DE L'ÉDITRICE OU VZN Unlimited]. Contact : [ADRESSE E-MAIL DE CONTACT].</p>
+<p>Hébergement : GitHub Pages, service de GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, États-Unis.</p>
+
+<h2>Les données que tu saisis</h2>
+<p>Tes tâches, ton agenda importé, tes jalons, tes bilans et tes réglages sont enregistrés dans le stockage local de ton navigateur, sur ton appareil. Ils ne sont envoyés à aucun serveur de Gestionnary : il n'en existe pas.</p>
+<p>Gestionnary n'utilise ni compte utilisateur, ni cookie publicitaire, ni outil de mesure d'audience.</p>
+
+<h2>La sauvegarde sur Google Drive (facultative)</h2>
+<p>Si tu cliques sur « Connecter mon Google Drive », Gestionnary te demande, via la connexion officielle de Google, une seule autorisation : <code>drive.appdata</code>. Elle permet à l'outil de lire et d'écrire un fichier de sauvegarde (<code>gestionnary.json</code>) dans un dossier caché de ton Drive, réservé à l'application.</p>
+<ul>
+<li>Gestionnary n'a accès à aucun autre fichier de ton Drive.</li>
+<li>Ce fichier sert uniquement à retrouver tes données sur tes autres appareils.</li>
+<li>Le jeton de connexion fourni par Google reste dans ton navigateur, le temps de ta session.</li>
+<li>Aucune donnée issue de ton compte Google n'est transmise à un tiers, vendue ou utilisée à des fins publicitaires.</li>
+</ul>
+<p>L'utilisation des données reçues des API Google respecte les <a href="https://developers.google.com/terms/api-services-user-data-policy">règles de Google relatives aux données utilisateur des services d'API</a>, y compris les exigences d'utilisation limitée.</p>
+<p>Pour couper l'accès : bouton « Déconnecter » dans Réglages, ou depuis <a href="https://myaccount.google.com/permissions">la page des autorisations de ton compte Google</a>.</p>
+
+<h2>Polices d'écriture</h2>
+<p>Les polices de l'interface sont chargées depuis Google Fonts. Ton navigateur contacte donc les serveurs de Google à l'ouverture de la page, ce qui leur transmet ton adresse IP.</p>
+
+<h2>Tes droits</h2>
+<p>Comme aucune donnée n'est conservée par l'éditrice, tu restes seul·e maître de tes informations :</p>
+<ul>
+<li><strong>Les consulter ou les emporter</strong> : Réglages › Exporter ma sauvegarde.</li>
+<li><strong>Les supprimer de ton appareil</strong> : Réglages › Tout effacer.</li>
+<li><strong>Les supprimer de ton Drive</strong> : dans Google Drive sur ordinateur, Paramètres › Gérer les applications › Gestionnary › Options › Supprimer les données d'application cachées.</li>
+</ul>
+<p>Pour toute question : [ADRESSE E-MAIL DE CONTACT].</p>
+</main>
+</body>
+</html>
